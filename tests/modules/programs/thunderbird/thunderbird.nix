@@ -1,4 +1,5 @@
-{ lib, realPkgs, ... }: {
+{ lib, realPkgs, ... }:
+{
   imports = [ ../../accounts/email-test-accounts.nix ];
 
   accounts.email.accounts = {
@@ -76,12 +77,24 @@
         '';
 
         feedAccounts.rss = { };
+
+        accountsOrder = [
+          "hm@example.com"
+          "rss"
+          "imperative_account"
+          "hm-account"
+        ];
       };
 
       second.settings = {
         "second.setting" = "some-test-setting";
-        second.nested.evenFurtherNested = [ 1 2 3 ];
+        second.nested.evenFurtherNested = [
+          1
+          2
+          3
+        ];
       };
+      second.accountsOrder = [ "account1" ];
     };
 
     settings = {
@@ -90,38 +103,36 @@
     };
   };
 
-  nmt.script = let
-    isDarwin = realPkgs.stdenv.hostPlatform.isDarwin;
-    configDir = if isDarwin then "Library/Thunderbird" else ".thunderbird";
-    profilesDir = if isDarwin then "${configDir}/Profiles" else "${configDir}";
-    platform = if isDarwin then "darwin" else "linux";
-  in ''
-    assertFileExists home-files/${configDir}/profiles.ini
-    assertFileContent home-files/${configDir}/profiles.ini \
-      ${./thunderbird-expected-profiles-${platform}.ini}
+  nmt.script =
+    let
+      isDarwin = realPkgs.stdenv.hostPlatform.isDarwin;
+      configDir = if isDarwin then "Library/Thunderbird" else ".thunderbird";
+      profilesDir = if isDarwin then "${configDir}/Profiles" else "${configDir}";
+      platform = if isDarwin then "darwin" else "linux";
+    in
+    ''
+      assertFileExists home-files/${configDir}/profiles.ini
+      assertFileContent home-files/${configDir}/profiles.ini \
+        ${./thunderbird-expected-profiles-${platform}.ini}
 
-    assertFileExists home-files/${profilesDir}/first/user.js
-    assertFileContent home-files/${profilesDir}/first/user.js \
-      ${./thunderbird-expected-first-${platform}.js}
+      assertFileExists home-files/${profilesDir}/first/user.js
+      assertFileContent home-files/${profilesDir}/first/user.js \
+        ${./thunderbird-expected-first-${platform}.js}
 
-    assertFileExists home-files/${profilesDir}/second/user.js
-    assertFileContent home-files/${profilesDir}/second/user.js \
-      ${./thunderbird-expected-second-${platform}.js}
+      assertFileExists home-files/${profilesDir}/second/user.js
+      assertFileContent home-files/${profilesDir}/second/user.js \
+        ${./thunderbird-expected-second-${platform}.js}
 
-    assertFileExists home-files/${profilesDir}/first/chrome/userChrome.css
-    assertFileContent home-files/${profilesDir}/first/chrome/userChrome.css \
-      <(echo "* { color: blue !important; }")
+      assertFileExists home-files/${profilesDir}/first/chrome/userChrome.css
+      assertFileContent home-files/${profilesDir}/first/chrome/userChrome.css \
+        <(echo "* { color: blue !important; }")
 
-    assertFileExists home-files/${profilesDir}/first/chrome/userContent.css
-    assertFileContent home-files/${profilesDir}/first/chrome/userContent.css \
-      <(echo "* { color: red !important; }")
+      assertFileExists home-files/${profilesDir}/first/chrome/userContent.css
+      assertFileContent home-files/${profilesDir}/first/chrome/userContent.css \
+        <(echo "* { color: red !important; }")
 
-    assertFileExists home-files/${profilesDir}/first/ImapMail/${
-      builtins.hashString "sha256" "hm@example.com"
-    }/msgFilterRules.dat
-    assertFileContent home-files/${profilesDir}/first/ImapMail/${
-      builtins.hashString "sha256" "hm@example.com"
-    }/msgFilterRules.dat \
-      ${./thunderbird-expected-msgFilterRules.dat}
-  '';
+      assertFileExists home-files/${profilesDir}/first/ImapMail/${builtins.hashString "sha256" "hm@example.com"}/msgFilterRules.dat
+      assertFileContent home-files/${profilesDir}/first/ImapMail/${builtins.hashString "sha256" "hm@example.com"}/msgFilterRules.dat \
+        ${./thunderbird-expected-msgFilterRules.dat}
+    '';
 }

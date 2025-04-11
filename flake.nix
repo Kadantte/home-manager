@@ -3,7 +3,12 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      ...
+    }:
     {
       nixosModules = rec {
         home-manager = ./nixos;
@@ -37,34 +42,43 @@
       };
 
       lib = import ./lib { inherit (nixpkgs) lib; };
-    } // (let
-      forAllSystems = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed;
-    in {
-      formatter = forAllSystems (system:
-        let pkgs = nixpkgs.legacyPackages.${system};
-        in pkgs.linkFarm "format" [{
-          name = "bin/format";
-          path = ./format;
-        }]);
+    }
+    // (
+      let
+        forAllSystems = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed;
+      in
+      {
+        formatter = forAllSystems (
+          system:
+          nixpkgs.legacyPackages.${system}.nixfmt-tree.override {
+            settings = {
+              tree-root-file = "release.json";
+            };
+          }
+        );
 
-      packages = forAllSystems (system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          releaseInfo = nixpkgs.lib.importJSON ./release.json;
-          docs = import ./docs {
-            inherit pkgs;
-            inherit (releaseInfo) release isReleaseBranch;
-          };
-          hmPkg = pkgs.callPackage ./home-manager { path = "${self}"; };
-        in {
-          default = hmPkg;
-          home-manager = hmPkg;
+        packages = forAllSystems (
+          system:
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+            releaseInfo = nixpkgs.lib.importJSON ./release.json;
+            docs = import ./docs {
+              inherit pkgs;
+              inherit (releaseInfo) release isReleaseBranch;
+            };
+            hmPkg = pkgs.callPackage ./home-manager { path = "${self}"; };
+          in
+          {
+            default = hmPkg;
+            home-manager = hmPkg;
 
-          docs-html = docs.manual.html;
-          docs-htmlOpenTool = docs.manual.htmlOpenTool;
-          docs-json = docs.options.json;
-          docs-jsonModuleMaintainers = docs.jsonModuleMaintainers;
-          docs-manpages = docs.manPages;
-        });
-    });
+            docs-html = docs.manual.html;
+            docs-htmlOpenTool = docs.manual.htmlOpenTool;
+            docs-json = docs.options.json;
+            docs-jsonModuleMaintainers = docs.jsonModuleMaintainers;
+            docs-manpages = docs.manPages;
+          }
+        );
+      }
+    );
 }
