@@ -1,16 +1,27 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
-  inherit (builtins) baseNameOf listToAttrs map unsafeDiscardStringContext;
-  inherit (lib) literalExpression mkEnableOption mkIf mkOption types;
+  inherit (lib)
+    literalExpression
+    mkEnableOption
+    mkIf
+    mkOption
+    types
+    ;
 
   cfg = config.xdg.autostart;
 
-  linkedDesktopEntries = pkgs.runCommandNoCCLocal "xdg-autostart-entries" { } ''
+  linkedDesktopEntries = pkgs.runCommandLocal "xdg-autostart-entries" { } ''
     mkdir -p $out
     ${lib.concatMapStringsSep "\n" (e: "ln -s ${e} $out") cfg.entries}
   '';
 
-in {
+in
+{
   meta.maintainers = with lib.maintainers; [ Scrumplex ];
 
   options.xdg.autostart = {

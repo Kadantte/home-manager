@@ -1,8 +1,17 @@
-{ config, options, lib, pkgs, ... }:
-
-with lib;
-
+{
+  config,
+  options,
+  lib,
+  pkgs,
+  ...
+}:
 let
+  inherit (lib)
+    generators
+    mkIf
+    mkOption
+    types
+    ;
 
   cfg = config.services.mopidy;
 
@@ -11,9 +20,10 @@ let
   # `mopidy/config/types.py` from the source code.
   toMopidyConf = generators.toINI {
     mkKeyValue = generators.mkKeyValueDefault {
-      mkValueString = v:
-        if isList v then
-          "\n  " + concatStringsSep "\n  " v
+      mkValueString =
+        v:
+        if lib.isList v then
+          "\n  " + lib.concatStringsSep "\n  " v
         else
           generators.mkValueStringDefault { } v;
     } " = ";
@@ -21,7 +31,7 @@ let
 
   mopidyEnv = pkgs.buildEnv {
     name = "mopidy-with-extensions-${pkgs.mopidy.version}";
-    paths = closePropagation cfg.extensionPackages;
+    paths = lib.closePropagation cfg.extensionPackages;
     pathsToLink = [ "/${pkgs.mopidyPackages.python.sitePackages}" ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     ignoreCollisions = true;
@@ -32,36 +42,48 @@ let
   };
 
   # Nix-representable format for Mopidy config.
-  mopidyConfFormat = { }: {
-    type = with types;
-      let
-        valueType = nullOr (oneOf [ bool float int str (listOf valueType) ])
-          // {
-            description = "Mopidy config value";
-          };
-      in attrsOf (attrsOf valueType);
+  mopidyConfFormat =
+    { }:
+    {
+      type =
+        with types;
+        let
+          valueType =
+            nullOr (oneOf [
+              bool
+              float
+              int
+              str
+              (listOf valueType)
+            ])
+            // {
+              description = "Mopidy config value";
+            };
+        in
+        attrsOf (attrsOf valueType);
 
-    generate = name: value: pkgs.writeText name (toMopidyConf value);
-  };
+      generate = name: value: pkgs.writeText name (toMopidyConf value);
+    };
 
   settingsFormat = mopidyConfFormat { };
 
-  configFilePaths = concatStringsSep ":"
-    ([ "${config.xdg.configHome}/mopidy/mopidy.conf" ] ++ cfg.extraConfigFiles);
+  configFilePaths = lib.concatStringsSep ":" (
+    [ "${config.xdg.configHome}/mopidy/mopidy.conf" ] ++ cfg.extraConfigFiles
+  );
 
   hasMopidyLocal = builtins.elem pkgs.mopidy-local cfg.extensionPackages;
 
-in {
-  meta.maintainers = [ hm.maintainers.foo-dogsquared ];
+in
+{
+  meta.maintainers = [ lib.hm.maintainers.foo-dogsquared ];
 
   options.services.mopidy = {
-    enable = mkEnableOption "Mopidy music player daemon";
+    enable = lib.mkEnableOption "Mopidy music player daemon";
 
     extensionPackages = mkOption {
       type = with types; listOf package;
       default = [ ];
-      example = literalExpression
-        "with pkgs; [ mopidy-spotify mopidy-mpd mopidy-mpris ]";
+      example = lib.literalExpression "with pkgs; [ mopidy-spotify mopidy-mpd mopidy-mpris ]";
       description = ''
         Mopidy extensions that should be loaded by the service.
       '';
@@ -70,7 +92,7 @@ in {
     settings = mkOption {
       type = settingsFormat.type;
       default = { };
-      example = literalExpression ''
+      example = lib.literalExpression ''
         {
           file = {
             media_dirs = [
@@ -116,8 +138,9 @@ in {
   };
 
   config = mkIf cfg.enable {
-    assertions =
-      [ (hm.assertions.assertPlatform "services.mopidy" pkgs platforms.linux) ];
+    assertions = [
+      (lib.hm.assertions.assertPlatform "services.mopidy" pkgs lib.platforms.linux)
+    ];
 
     xdg.configFile."mopidy/mopidy.conf".source =
       settingsFormat.generate "mopidy-${config.home.username}" cfg.settings;
@@ -126,9 +149,13 @@ in {
       Unit = {
         Description = "mopidy music player daemon";
         Documentation = [ "https://mopidy.com/" ];
-        After = [ "network.target" "sound.target" ];
-        X-Restart-Triggers = mkIf (cfg.settings != { })
-          [ "${config.xdg.configFile."mopidy/mopidy.conf".source}" ];
+        After = [
+          "network.target"
+          "sound.target"
+        ];
+        X-Restart-Triggers = mkIf (cfg.settings != { }) [
+          "${config.xdg.configFile."mopidy/mopidy.conf".source}"
+        ];
       };
 
       Service = {
@@ -143,12 +170,14 @@ in {
       Unit = {
         Description = "mopidy local files scanner";
         Documentation = [ "https://mopidy.com/" ];
-        After = [ "network.target" "sound.target" ];
+        After = [
+          "network.target"
+          "sound.target"
+        ];
       };
 
       Service = {
-        ExecStart =
-          "${mopidyEnv}/bin/mopidy --config ${configFilePaths} local scan";
+        ExecStart = "${mopidyEnv}/bin/mopidy --config ${configFilePaths} local scan";
         Type = "oneshot";
       };
 

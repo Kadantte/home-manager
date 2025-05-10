@@ -1,14 +1,4 @@
-{ pkgs, ... }:
-let
-
-  substituteExpected = path:
-    pkgs.substituteAll {
-      src = path;
-
-      sensible_rtp = pkgs.tmuxPlugins.sensible.rtp;
-    };
-
-in {
+{
   config = {
     programs.tmux = {
       enable = true;
@@ -17,8 +7,7 @@ in {
 
     nmt.script = ''
       assertFileExists home-files/.config/tmux/tmux.conf
-      assertFileContent home-files/.config/tmux/tmux.conf \
-        ${substituteExpected ./default-shell.conf}
+      assertFileContent home-files/.config/tmux/tmux.conf ${./default-shell.conf}
     '';
   };
 }
