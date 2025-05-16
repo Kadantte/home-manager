@@ -1,9 +1,15 @@
-{
+{ config, lib, ... }:
+
+lib.mkIf config.test.enableLegacyIfd {
   imports = [ ./podman-stubs.nix ];
 
   services.podman = {
     enable = true;
-    images = { "my-img" = { image = "docker.io/alpine:latest"; }; };
+    images = {
+      "my-img" = {
+        image = "docker.io/alpine:latest";
+      };
+    };
   };
 
   nmt.script = ''

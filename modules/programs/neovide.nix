@@ -1,11 +1,17 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
 
   cfg = config.programs.neovide;
   settingsFormat = pkgs.formats.toml { };
 
-in {
+in
+{
   meta.maintainers = [ lib.hm.maintainers.NitroSniper ];
 
   options.programs.neovide = {
@@ -15,6 +21,7 @@ in {
 
     settings = lib.mkOption {
       type = settingsFormat.type;
+      default = { };
       example = lib.literalExpression ''
         {
           fork = false;
@@ -46,7 +53,8 @@ in {
 
   config = lib.mkIf cfg.enable {
     home.packages = lib.mkIf (cfg.package != null) [ cfg.package ];
-    xdg.configFile."neovide/config.toml".source =
-      settingsFormat.generate "config.toml" cfg.settings;
+    xdg.configFile."neovide/config.toml" = lib.mkIf (cfg.settings != { }) {
+      source = settingsFormat.generate "neovide-config.toml" cfg.settings;
+    };
   };
 }

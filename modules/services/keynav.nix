@@ -1,18 +1,22 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
-
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
 
   cfg = config.services.keynav;
 
-in {
-  options.services.keynav = { enable = mkEnableOption "keynav"; };
+in
+{
+  options.services.keynav = {
+    enable = lib.mkEnableOption "keynav";
+  };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     assertions = [
-      (lib.hm.assertions.assertPlatform "services.keynav" pkgs
-        lib.platforms.linux)
+      (lib.hm.assertions.assertPlatform "services.keynav" pkgs lib.platforms.linux)
     ];
 
     systemd.user.services.keynav = {
@@ -28,7 +32,9 @@ in {
         Restart = "always";
       };
 
-      Install = { WantedBy = [ "graphical-session.target" ]; };
+      Install = {
+        WantedBy = [ "graphical-session.target" ];
+      };
     };
   };
 }
