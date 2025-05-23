@@ -1,43 +1,52 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
+  inherit (lib)
+    mkOption
+    literalExpression
+    types
+    ;
 
   cfg = config.services.xsettingsd;
 
-  renderSettings = settings:
-    concatStrings (mapAttrsToList renderSetting settings);
+  renderSettings = settings: lib.concatStrings (lib.mapAttrsToList renderSetting settings);
 
   renderSetting = key: value: ''
     ${key} ${renderValue value}
   '';
 
-  renderValue = value:
+  renderValue =
+    value:
     {
       int = toString value;
       bool = if value then "1" else "0";
       string = ''"${value}"'';
-    }.${builtins.typeOf value};
+    }
+    .${builtins.typeOf value};
 
-in {
-  meta.maintainers = [ maintainers.imalison ];
+in
+{
+  meta.maintainers = [ lib.maintainers.imalison ];
 
   options = {
     services.xsettingsd = {
-      enable = mkEnableOption "xsettingsd";
+      enable = lib.mkEnableOption "xsettingsd";
 
-      package = mkOption {
-        type = types.package;
-        default = pkgs.xsettingsd;
-        defaultText = literalExpression "pkgs.xsettingsd";
-        description = ''
-          Package containing the {command}`xsettingsd` program.
-        '';
-      };
+      package = lib.mkPackageOption pkgs "xsettingsd" { };
 
       settings = mkOption {
-        type = with types; attrsOf (oneOf [ bool int str ]);
+        type =
+          with types;
+          attrsOf (oneOf [
+            bool
+            int
+            str
+          ]);
         default = { };
         example = literalExpression ''
           {
@@ -58,18 +67,18 @@ in {
         type = types.nullOr types.package;
         internal = true;
         readOnly = true;
-        default = if cfg.settings == { } then
-          null
-        else
-          pkgs.writeText "xsettingsd.conf" (renderSettings cfg.settings);
+        default =
+          if cfg.settings == { } then
+            null
+          else
+            pkgs.writeText "xsettingsd.conf" (renderSettings cfg.settings);
       };
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     assertions = [
-      (lib.hm.assertions.assertPlatform "services.xsettingsd" pkgs
-        lib.platforms.linux)
+      (lib.hm.assertions.assertPlatform "services.xsettingsd" pkgs lib.platforms.linux)
     ];
 
     systemd.user.services.xsettingsd = {
@@ -83,9 +92,9 @@ in {
 
       Service = {
         Environment = [ "PATH=${config.home.profileDirectory}/bin" ];
-        ExecStart = "${cfg.package}/bin/xsettingsd"
-          + optionalString (cfg.configFile != null)
-          " -c ${escapeShellArg cfg.configFile}";
+        ExecStart =
+          "${cfg.package}/bin/xsettingsd"
+          + lib.optionalString (cfg.configFile != null) " -c ${lib.escapeShellArg cfg.configFile}";
         Restart = "on-abort";
       };
     };

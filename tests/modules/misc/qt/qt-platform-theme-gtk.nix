@@ -6,17 +6,24 @@
     platformTheme.name = "gtk";
   };
 
-  i18n.inputMethod.enabled = "fcitx5";
+  i18n.inputMethod = {
+    enable = true;
+    type = "fcitx5";
+  };
 
   nixpkgs.overlays = [
     (final: prev: {
-      libsForQt5 = prev.libsForQt5.overrideScope (qt5final: qt5prev: {
-        qtstyleplugins = config.lib.test.mkStubPackage { outPath = null; };
-      });
+      libsForQt5 = prev.libsForQt5.overrideScope (
+        qt5final: qt5prev: {
+          qtstyleplugins = config.lib.test.mkStubPackage { outPath = null; };
+        }
+      );
 
-      qt6Packages = prev.qt6Packages.overrideScope (qt6final: qt6prev: {
-        qt6gtk2 = config.lib.test.mkStubPackage { outPath = null; };
-      });
+      qt6Packages = prev.qt6Packages.overrideScope (
+        qt6final: qt6prev: {
+          qt6gtk2 = config.lib.test.mkStubPackage { outPath = null; };
+        }
+      );
     })
   ];
 

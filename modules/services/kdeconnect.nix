@@ -1,56 +1,56 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
-
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
 
   cfg = config.services.kdeconnect;
 
-in {
-  meta.maintainers = [ maintainers.adisbladis ];
+in
+{
+  meta.maintainers = [ lib.maintainers.adisbladis ];
 
   options = {
     services.kdeconnect = {
-      enable = mkEnableOption "KDE connect";
-      package = mkOption {
-        type = types.package;
-        default = pkgs.kdePackages.kdeconnect-kde;
-        example = literalExpression "pkgs.plasma5Packages.kdeconnect-kde";
-        description = "The KDE connect package to use";
+      enable = lib.mkEnableOption "KDE connect";
+      package = lib.mkPackageOption pkgs.kdePackages "kdeconnect-kde" {
+        example = "pkgs.plasma5Packages.kdeconnect-kde";
+        pkgsText = "pkgs.kdePackages";
       };
 
-      indicator = mkOption {
-        type = types.bool;
+      indicator = lib.mkOption {
+        type = lib.types.bool;
         default = false;
         description = "Whether to enable kdeconnect-indicator service.";
       };
     };
   };
 
-  config = mkMerge [
-    (mkIf cfg.enable {
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
       home.packages = [ cfg.package ];
 
       assertions = [
-        (hm.assertions.assertPlatform "services.kdeconnect" pkgs
-          platforms.linux)
+        (lib.hm.assertions.assertPlatform "services.kdeconnect" pkgs lib.platforms.linux)
       ];
 
       systemd.user.services.kdeconnect = {
         Unit = {
-          Description =
-            "Adds communication between your desktop and your smartphone";
+          Description = "Adds communication between your desktop and your smartphone";
           After = [ "graphical-session.target" ];
           PartOf = [ "graphical-session.target" ];
         };
 
-        Install = { WantedBy = [ "graphical-session.target" ]; };
+        Install = {
+          WantedBy = [ "graphical-session.target" ];
+        };
 
         Service = {
           Environment = [ "PATH=${config.home.profileDirectory}/bin" ];
           ExecStart =
-            if strings.versionAtLeast (versions.majorMinor cfg.package.version)
-            "24.05" then
+            if lib.strings.versionAtLeast (lib.versions.majorMinor cfg.package.version) "24.05" then
               "${cfg.package}/bin/kdeconnectd"
             else
               "${cfg.package}/libexec/kdeconnectd";
@@ -59,10 +59,9 @@ in {
       };
     })
 
-    (mkIf cfg.indicator {
+    (lib.mkIf cfg.indicator {
       assertions = [
-        (hm.assertions.assertPlatform "services.kdeconnect" pkgs
-          platforms.linux)
+        (lib.hm.assertions.assertPlatform "services.kdeconnect" pkgs lib.platforms.linux)
       ];
 
       systemd.user.services.kdeconnect-indicator = {
@@ -70,15 +69,15 @@ in {
           Description = "kdeconnect-indicator";
           After = [
             "graphical-session.target"
-            "polybar.service"
-            "taffybar.service"
-            "stalonetray.service"
+            "tray.target"
           ];
           PartOf = [ "graphical-session.target" ];
           Requires = [ "tray.target" ];
         };
 
-        Install = { WantedBy = [ "graphical-session.target" ]; };
+        Install = {
+          WantedBy = [ "graphical-session.target" ];
+        };
 
         Service = {
           Environment = [ "PATH=${config.home.profileDirectory}/bin" ];

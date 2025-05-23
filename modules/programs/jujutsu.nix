@@ -1,30 +1,44 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   inherit (lib) mkIf mkOption types;
 
   cfg = config.programs.jujutsu;
   tomlFormat = pkgs.formats.toml { };
+  packageVersion = lib.getVersion cfg.package;
 
-  configDir = if pkgs.stdenv.isDarwin then
-    "Library/Application Support"
-  else
-    config.xdg.configHome;
-
-in {
+  # jj v0.29+ deprecated support for "~/Library/Application Support" on Darwin.
+  configDir =
+    if pkgs.stdenv.isDarwin && !(lib.versionAtLeast packageVersion "0.29.0") then
+      "Library/Application Support"
+    else
+      config.xdg.configHome;
+in
+{
   meta.maintainers = [ lib.maintainers.shikanime ];
 
-  imports = let
-    mkRemovedShellIntegration = name:
-      lib.mkRemovedOptionModule [
-        "programs"
-        "jujutsu"
-        "enable${name}Integration"
-      ] "This option is no longer necessary.";
-  in map mkRemovedShellIntegration [ "Bash" "Fish" "Zsh" ];
+  imports =
+    let
+      mkRemovedShellIntegration =
+        name:
+        lib.mkRemovedOptionModule [
+          "programs"
+          "jujutsu"
+          "enable${name}Integration"
+        ] "This option is no longer necessary.";
+    in
+    map mkRemovedShellIntegration [
+      "Bash"
+      "Fish"
+      "Zsh"
+    ];
 
   options.programs.jujutsu = {
-    enable = lib.mkEnableOption
-      "a Git-compatible DVCS that is both simple and powerful";
+    enable = lib.mkEnableOption "a Git-compatible DVCS that is both simple and powerful";
 
     package = lib.mkPackageOption pkgs "jujutsu" { nullable = true; };
 
@@ -57,19 +71,29 @@ in {
   config = mkIf cfg.enable {
     home.packages = mkIf (cfg.package != null) [ cfg.package ];
 
-    home.file."${configDir}/jj/config.toml" = mkIf (cfg.settings != { }) {
-      source = tomlFormat.generate "jujutsu-config" (cfg.settings
-        // lib.optionalAttrs (cfg.ediff) (let
-          emacsDiffScript = pkgs.writeShellScriptBin "emacs-ediff" ''
-            set -euxo pipefail
-            ${config.programs.emacs.package}/bin/emacsclient -c --eval "(ediff-merge-files-with-ancestor \"$1\" \"$2\" \"$3\" nil \"$4\")"
-          '';
-        in {
-          merge-tools.ediff = {
+    programs.jujutsu.settings = lib.mkMerge [
+      (lib.mkIf cfg.ediff {
+        merge-tools.ediff =
+          let
+            emacsDiffScript = pkgs.writeShellScriptBin "emacs-ediff" ''
+              set -euxo pipefail
+              ${config.programs.emacs.package}/bin/emacsclient -c --eval "(ediff-merge-files-with-ancestor \"$1\" \"$2\" \"$3\" nil \"$4\")"
+            '';
+          in
+          {
             program = lib.getExe emacsDiffScript;
-            merge-args = [ "$left" "$right" "$base" "$output" ];
+            merge-args = [
+              "$left"
+              "$right"
+              "$base"
+              "$output"
+            ];
           };
-        }));
+      })
+    ];
+
+    home.file."${configDir}/jj/config.toml" = mkIf (cfg.settings != { }) {
+      source = tomlFormat.generate "jujutsu-config" cfg.settings;
     };
   };
 }

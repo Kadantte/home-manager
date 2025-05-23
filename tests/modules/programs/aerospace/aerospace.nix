@@ -18,8 +18,6 @@
   };
 
   nmt.script = ''
-    assertFileContent home-files/.config/aerospace/aerospace.toml ${
-      ./settings-expected.toml
-    }
+    assertFileContent home-files/.config/aerospace/aerospace.toml ${./settings-expected.toml}
   '';
 }

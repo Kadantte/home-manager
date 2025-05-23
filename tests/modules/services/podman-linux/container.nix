@@ -1,4 +1,6 @@
-{
+{ config, lib, ... }:
+
+lib.mkIf config.test.enableLegacyIfd {
   imports = [ ./podman-stubs.nix ];
 
   services.podman = {
@@ -43,8 +45,7 @@
   };
 
   test.asserts.assertions.expected = [
-    ''
-      In 'my-container-2' config. Container.ContainerName: 'some-other-container-name' does not match expected type: value "my-container-2" (singular enum)''
+    ''In 'my-container-2' config. Container.ContainerName: 'some-other-container-name' does not match expected type: value "my-container-2" (singular enum)''
   ];
 
   nmt.script = ''

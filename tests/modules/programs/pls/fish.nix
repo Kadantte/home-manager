@@ -6,14 +6,15 @@
 
     pls = {
       enable = true;
-      enableAliases = true;
+      enableFishIntegration = true;
       package = config.lib.test.mkStubPackage { outPath = "@pls@"; };
     };
   };
 
   # Needed to avoid error with dummy fish package.
-  xdg.dataFile."fish/home-manager_generated_completions".source =
-    lib.mkForce (builtins.toFile "empty" "");
+  xdg.dataFile."fish/home-manager_generated_completions".source = lib.mkForce (
+    builtins.toFile "empty" ""
+  );
 
   nmt.script = ''
     assertFileExists home-files/.config/fish/config.fish

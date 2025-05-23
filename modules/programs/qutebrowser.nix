@@ -1,42 +1,67 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   inherit (lib)
-    concatStringsSep literalExpression mapAttrsToList mkIf mkOption types;
+    concatStringsSep
+    literalExpression
+    mapAttrsToList
+    mkIf
+    mkOption
+    types
+    ;
 
   cfg = config.programs.qutebrowser;
 
-  formatLine = o: n: v:
-    let
-      formatValue = v:
-        if v == null then
-          "None"
-        else if builtins.isBool v then
-          (if v then "True" else "False")
-        else if builtins.isString v then
-          ''"${v}"''
-        else if builtins.isList v then
-          "[${concatStringsSep ", " (map formatValue v)}]"
-        else
-          builtins.toString v;
-    in if builtins.isAttrs v then
-      concatStringsSep "\n" (mapAttrsToList (formatLine "${o}${n}.") v)
+  pythonize =
+    v:
+    if v == null then
+      "None"
+    else if builtins.isBool v then
+      (if v then "True" else "False")
+    else if builtins.isString v then
+      ''"${v}"''
+    else if builtins.isList v then
+      "[${concatStringsSep ", " (map pythonize v)}]"
     else
-      "${o}${n} = ${formatValue v}";
+      builtins.toString v;
 
-  formatDictLine = o: n: v: ''${o}['${n}'] = "${v}"'';
+  formatDictLine =
+    o: n: v:
+    ''${o}['${n}'] = "${v}"'';
 
-  formatKeyBindings = m: b:
+  formatKeyBindings =
+    m: b:
     let
-      formatKeyBinding = m: k: c:
+      formatKeyBinding =
+        m: k: c:
         if c == null then
           ''config.unbind("${k}", mode="${m}")''
         else
           ''config.bind("${k}", "${lib.escape [ ''"'' ] c}", mode="${m}")'';
-    in concatStringsSep "\n" (mapAttrsToList (formatKeyBinding m) b);
+    in
+    concatStringsSep "\n" (mapAttrsToList (formatKeyBinding m) b);
 
   formatQuickmarks = n: s: "${n} ${s}";
 
-in {
+  # flattenSettings attrset -> [ [ <opt_path> <opt_value>] ]
+  flattenSettings =
+    x:
+    lib.collect (x: !builtins.isAttrs x) (
+      lib.mapAttrsRecursive (path: value: [
+        (lib.concatStringsSep "." path)
+        value
+      ]) x
+    );
+
+  configSet = l: "config.set(${lib.concatStringsSep ", " (map pythonize l)})";
+
+  setUrlConfig = url: conf: map (x: configSet (x ++ [ url ])) (flattenSettings conf);
+in
+{
   options.programs.qutebrowser = {
     enable = lib.mkEnableOption "qutebrowser";
 
@@ -265,53 +290,80 @@ in {
         Extra lines added to qutebrowser {file}`config.py` file.
       '';
     };
+
+    perDomainSettings = mkOption {
+      type = types.attrsOf types.anything;
+      default = { };
+      description = ''
+        Options to set, as in `settings` but per domain.
+        Refer to {option}`settings` for details.
+      '';
+      example = literalExpression ''
+        {
+          "zoom.us" = {
+            content = {
+              autoplay = true;
+              media.audio_capture = true;
+              media.video_capture = true;
+            };
+          };
+          "github.com".colors.webpage.darkmode.enabled = false;
+        };
+      '';
+    };
   };
 
-  config = let
-    qutebrowserConfig = concatStringsSep "\n" ([
-      (if cfg.loadAutoconfig then
-        "config.load_autoconfig()"
-      else
-        "config.load_autoconfig(False)")
-    ] ++ mapAttrsToList (formatLine "c.") cfg.settings
-      ++ mapAttrsToList (formatDictLine "c.aliases") cfg.aliases
-      ++ mapAttrsToList (formatDictLine "c.url.searchengines") cfg.searchEngines
-      ++ mapAttrsToList (formatDictLine "c.bindings.key_mappings")
-      cfg.keyMappings
-      ++ lib.optional (!cfg.enableDefaultBindings) "c.bindings.default = {}"
-      ++ mapAttrsToList formatKeyBindings cfg.keyBindings
-      ++ lib.optional (cfg.extraConfig != "") cfg.extraConfig);
+  config =
+    let
+      qutebrowserConfig = concatStringsSep "\n" (
+        [
+          (if cfg.loadAutoconfig then "config.load_autoconfig()" else "config.load_autoconfig(False)")
+        ]
+        ++ map configSet (flattenSettings cfg.settings)
+        ++ mapAttrsToList (formatDictLine "c.aliases") cfg.aliases
+        ++ mapAttrsToList (formatDictLine "c.url.searchengines") cfg.searchEngines
+        ++ mapAttrsToList (formatDictLine "c.bindings.key_mappings") cfg.keyMappings
+        ++ lib.optional (!cfg.enableDefaultBindings) "c.bindings.default = {}"
+        ++ mapAttrsToList formatKeyBindings cfg.keyBindings
+        ++ lib.optional (cfg.extraConfig != "") cfg.extraConfig
+        ++ lib.lists.flatten (mapAttrsToList setUrlConfig cfg.perDomainSettings)
+      );
 
-    quickmarksFile = lib.optionals (cfg.quickmarks != { }) concatStringsSep "\n"
-      (mapAttrsToList formatQuickmarks cfg.quickmarks);
+      quickmarksFile = lib.optionals (cfg.quickmarks != { }) concatStringsSep "\n" (
+        mapAttrsToList formatQuickmarks cfg.quickmarks
+      );
 
-    greasemonkeyDir =
-      lib.optionals (cfg.greasemonkey != [ ]) pkgs.linkFarmFromDrvs
-      "greasemonkey-userscripts" cfg.greasemonkey;
-  in mkIf cfg.enable {
-    home.packages = [ cfg.package ];
+      greasemonkeyDir = lib.optionals (
+        cfg.greasemonkey != [ ]
+      ) pkgs.linkFarmFromDrvs "greasemonkey-userscripts" cfg.greasemonkey;
+    in
+    mkIf cfg.enable {
+      home.packages = [ cfg.package ];
 
-    home.file.".qutebrowser/config.py" =
-      mkIf pkgs.stdenv.hostPlatform.isDarwin { text = qutebrowserConfig; };
-
-    home.file.".qutebrowser/quickmarks" =
-      mkIf (cfg.quickmarks != { } && pkgs.stdenv.hostPlatform.isDarwin) {
-        text = quickmarksFile;
+      home.file.".qutebrowser/config.py" = mkIf pkgs.stdenv.hostPlatform.isDarwin {
+        text = qutebrowserConfig;
       };
 
-    xdg.configFile."qutebrowser/config.py" =
-      mkIf pkgs.stdenv.hostPlatform.isLinux {
+      home.file.".qutebrowser/quickmarks" =
+        mkIf (cfg.quickmarks != { } && pkgs.stdenv.hostPlatform.isDarwin)
+          {
+            text = quickmarksFile;
+          };
+
+      xdg.configFile."qutebrowser/config.py" = mkIf pkgs.stdenv.hostPlatform.isLinux {
         text = qutebrowserConfig;
         onChange = ''
           hash="$(echo -n "$USER" | md5sum | cut -d' ' -f1)"
           socket="''${XDG_RUNTIME_DIR:-/run/user/$UID}/qutebrowser/ipc-$hash"
           if [[ -S $socket ]]; then
             command=${
-              lib.escapeShellArg (builtins.toJSON {
-                args = [ ":config-source" ];
-                target_arg = null;
-                protocol_version = 1;
-              })
+              lib.escapeShellArg (
+                builtins.toJSON {
+                  args = [ ":config-source" ];
+                  target_arg = null;
+                  protocol_version = 1;
+                }
+              )
             }
             echo "$command" | ${pkgs.socat}/bin/socat -lf /dev/null - UNIX-CONNECT:"$socket"
           fi
@@ -319,19 +371,22 @@ in {
         '';
       };
 
-    xdg.configFile."qutebrowser/quickmarks" =
-      mkIf (cfg.quickmarks != { } && pkgs.stdenv.hostPlatform.isLinux) {
-        text = quickmarksFile;
-      };
+      xdg.configFile."qutebrowser/quickmarks" =
+        mkIf (cfg.quickmarks != { } && pkgs.stdenv.hostPlatform.isLinux)
+          {
+            text = quickmarksFile;
+          };
 
-    home.file.".qutebrowser/greasemonkey" =
-      mkIf (cfg.greasemonkey != [ ] && pkgs.stdenv.hostPlatform.isDarwin) {
-        source = greasemonkeyDir;
-      };
+      home.file.".qutebrowser/greasemonkey" =
+        mkIf (cfg.greasemonkey != [ ] && pkgs.stdenv.hostPlatform.isDarwin)
+          {
+            source = greasemonkeyDir;
+          };
 
-    xdg.configFile."qutebrowser/greasemonkey" =
-      mkIf (cfg.greasemonkey != [ ] && pkgs.stdenv.hostPlatform.isLinux) {
-        source = greasemonkeyDir;
-      };
-  };
+      xdg.configFile."qutebrowser/greasemonkey" =
+        mkIf (cfg.greasemonkey != [ ] && pkgs.stdenv.hostPlatform.isLinux)
+          {
+            source = greasemonkeyDir;
+          };
+    };
 }

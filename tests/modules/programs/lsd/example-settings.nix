@@ -1,13 +1,20 @@
 {
   programs.lsd = {
     enable = true;
-    enableAliases = false;
     settings = {
       date = "relative";
-      blocks = [ "date" "size" "name" ];
+      blocks = [
+        "date"
+        "size"
+        "name"
+      ];
       layout = "oneline";
       sorting.dir-grouping = "first";
-      ignore-globs = [ ".git" ".hg" ".bsp" ];
+      ignore-globs = [
+        ".git"
+        ".hg"
+        ".bsp"
+      ];
     };
     colors = {
       date = {

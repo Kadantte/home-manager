@@ -5,7 +5,8 @@ let
 
   releaseInfo = lib.importJSON ../../release.json;
 
-in {
+in
+{
   options = {
     home.stateVersion = lib.mkOption {
       type = types.enum [
@@ -24,6 +25,7 @@ in {
         "24.05"
         "24.11"
         "25.05"
+        "25.11"
       ];
       description = ''
         It is occasionally necessary for Home Manager to change
@@ -44,11 +46,12 @@ in {
         internal = true;
         readOnly = true;
         type = types.str;
-        default = let
-          inherit (config.home.version) release revision;
-          suffix = lib.optionalString (revision != null)
-            "+${lib.substring 0 8 revision}";
-        in "${release}${suffix}";
+        default =
+          let
+            inherit (config.home.version) release revision;
+            suffix = lib.optionalString (revision != null) "+${lib.substring 0 8 revision}";
+          in
+          "${release}${suffix}";
         example = "22.11+213a0629";
         description = "The full Home Manager version.";
       };
@@ -76,11 +79,11 @@ in {
       revision = lib.mkOption {
         internal = true;
         type = types.nullOr types.str;
-        default = let gitRepo = "${toString ./../..}/.git";
-        in if lib.pathIsGitRepo gitRepo then
-          lib.commitIdFromGitRepo gitRepo
-        else
-          null;
+        default =
+          let
+            gitRepo = "${toString ./../..}/.git";
+          in
+          if lib.pathIsGitRepo gitRepo then lib.commitIdFromGitRepo gitRepo else null;
         description = ''
           The Git revision from which this Home Manager configuration was built.
         '';

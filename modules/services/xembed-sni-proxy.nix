@@ -1,34 +1,31 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
 
   cfg = config.services.xembed-sni-proxy;
 
-in {
-  meta.maintainers = [ maintainers.rycee ];
+in
+{
+  meta.maintainers = [ lib.maintainers.rycee ];
 
   options = {
     services.xembed-sni-proxy = {
-      enable = mkEnableOption "XEmbed SNI Proxy";
+      enable = lib.mkEnableOption "XEmbed SNI Proxy";
 
-      package = mkOption {
-        type = types.package;
-        default = pkgs.kdePackages.plasma-workspace;
-        defaultText = literalExpression "pkgs.kdePackages.plasma-workspace";
-        description = ''
-          Package containing the {command}`xembedsniproxy`
-          program.
-        '';
+      package = lib.mkPackageOption pkgs.kdePackages "plasma-workspace" {
+        pkgsText = "pkgs.kdePackages";
       };
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     assertions = [
-      (lib.hm.assertions.assertPlatform "services.xembed-sni-proxy" pkgs
-        lib.platforms.linux)
+      (lib.hm.assertions.assertPlatform "services.xembed-sni-proxy" pkgs lib.platforms.linux)
     ];
 
     systemd.user.services.xembed-sni-proxy = {
@@ -38,7 +35,9 @@ in {
         PartOf = [ "graphical-session.target" ];
       };
 
-      Install = { WantedBy = [ "graphical-session.target" ]; };
+      Install = {
+        WantedBy = [ "graphical-session.target" ];
+      };
 
       Service = {
         Environment = [ "PATH=${config.home.profileDirectory}/bin" ];

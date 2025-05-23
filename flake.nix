@@ -3,7 +3,12 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      ...
+    }:
     {
       nixosModules = rec {
         home-manager = ./nixos;
@@ -37,34 +42,50 @@
       };
 
       lib = import ./lib { inherit (nixpkgs) lib; };
-    } // (let
-      forAllSystems = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed;
-    in {
-      formatter = forAllSystems (system:
-        let pkgs = nixpkgs.legacyPackages.${system};
-        in pkgs.linkFarm "format" [{
-          name = "bin/format";
-          path = ./format;
-        }]);
+    }
+    // (
+      let
+        forAllPkgs =
+          f:
+          nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed (system: f nixpkgs.legacyPackages.${system});
+      in
+      {
+        formatter = forAllPkgs (
+          pkgs:
+          pkgs.treefmt.withConfig {
+            runtimeInputs = with pkgs; [
+              nixfmt-rfc-style
+              keep-sorted
+            ];
+            settings = pkgs.lib.importTOML ./treefmt.toml;
+          }
+        );
 
-      packages = forAllSystems (system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          releaseInfo = nixpkgs.lib.importJSON ./release.json;
-          docs = import ./docs {
-            inherit pkgs;
-            inherit (releaseInfo) release isReleaseBranch;
-          };
-          hmPkg = pkgs.callPackage ./home-manager { path = "${self}"; };
-        in {
-          default = hmPkg;
-          home-manager = hmPkg;
+        packages = forAllPkgs (
+          pkgs:
+          let
+            releaseInfo = nixpkgs.lib.importJSON ./release.json;
+            docs = import ./docs {
+              inherit pkgs;
+              inherit (releaseInfo) release isReleaseBranch;
+            };
+            hmPkg = pkgs.callPackage ./home-manager { path = "${self}"; };
+          in
+          {
+            default = hmPkg;
+            home-manager = hmPkg;
 
-          docs-html = docs.manual.html;
-          docs-htmlOpenTool = docs.manual.htmlOpenTool;
-          docs-json = docs.options.json;
-          docs-jsonModuleMaintainers = docs.jsonModuleMaintainers;
-          docs-manpages = docs.manPages;
-        });
-    });
+            create-news-entry = pkgs.writeShellScriptBin "create-news-entry" ''
+              ./modules/misc/news/create-news-entry.sh
+            '';
+
+            docs-html = docs.manual.html;
+            docs-htmlOpenTool = docs.manual.htmlOpenTool;
+            docs-json = docs.options.json;
+            docs-jsonModuleMaintainers = docs.jsonModuleMaintainers;
+            docs-manpages = docs.manPages;
+          }
+        );
+      }
+    );
 }

@@ -1,24 +1,29 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
-
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
+  inherit (lib) mkIf mkOption types;
 
   cfg = config.services.ollama;
 
-  ollamaPackage = if cfg.acceleration == null then
-    cfg.package
-  else
-    cfg.package.override { inherit (cfg) acceleration; };
+  ollamaPackage =
+    if cfg.acceleration == null then
+      cfg.package
+    else
+      cfg.package.override { inherit (cfg) acceleration; };
 
-in {
-  meta.maintainers = [ maintainers.terlar ];
+in
+{
+  meta.maintainers = [ lib.maintainers.terlar ];
 
   options = {
     services.ollama = {
-      enable = mkEnableOption "ollama server for local large language models";
+      enable = lib.mkEnableOption "ollama server for local large language models";
 
-      package = mkPackageOption pkgs "ollama" { };
+      package = lib.mkPackageOption pkgs "ollama" { };
 
       host = mkOption {
         type = types.str;
@@ -39,7 +44,13 @@ in {
       };
 
       acceleration = mkOption {
-        type = types.nullOr (types.enum [ false "rocm" "cuda" ]);
+        type = types.nullOr (
+          types.enum [
+            false
+            "rocm"
+            "cuda"
+          ]
+        );
         default = null;
         example = "rocm";
         description = ''
@@ -83,19 +94,24 @@ in {
       };
 
       Service = {
-        ExecStart = "${getExe ollamaPackage} serve";
-        Environment =
-          (mapAttrsToList (n: v: "${n}=${v}") cfg.environmentVariables)
-          ++ [ "OLLAMA_HOST=${cfg.host}:${toString cfg.port}" ];
+        ExecStart = "${lib.getExe ollamaPackage} serve";
+        Environment = (lib.mapAttrsToList (n: v: "${n}=${v}") cfg.environmentVariables) ++ [
+          "OLLAMA_HOST=${cfg.host}:${toString cfg.port}"
+        ];
       };
 
-      Install = { WantedBy = [ "default.target" ]; };
+      Install = {
+        WantedBy = [ "default.target" ];
+      };
     };
 
     launchd.agents.ollama = mkIf pkgs.stdenv.isDarwin {
       enable = true;
       config = {
-        ProgramArguments = [ "${getExe ollamaPackage}" "serve" ];
+        ProgramArguments = [
+          "${lib.getExe ollamaPackage}"
+          "serve"
+        ];
         EnvironmentVariables = cfg.environmentVariables // {
           OLLAMA_HOST = "${cfg.host}:${toString cfg.port}";
         };

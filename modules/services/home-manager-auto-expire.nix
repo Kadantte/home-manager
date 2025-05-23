@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
 
@@ -8,7 +13,19 @@ let
     path = config.programs.home-manager.path;
   };
 
-in {
+  script = pkgs.writeShellScript "home-manager-auto-expire" (
+    ''
+      echo "Expire old Home Manager generations"
+      ${homeManagerPackage}/bin/home-manager expire-generations '${cfg.timestamp}'
+    ''
+    + lib.optionalString cfg.store.cleanup ''
+      echo "Clean-up Nix store"
+      ${pkgs.nix}/bin/nix-collect-garbage ${cfg.store.options}
+    ''
+  );
+
+in
+{
   meta.maintainers = [ lib.maintainers.thiagokokada ];
 
   options = {
@@ -38,6 +55,8 @@ in {
           as the `OnCalendar` option.
 
           The format is described in {manpage}`systemd.time(7)`.
+
+          ${lib.hm.darwin.intervalDocumentation}
         '';
       };
 
@@ -55,7 +74,7 @@ in {
         options = lib.mkOption {
           type = lib.types.str;
           description = ''
-            Options given to `nix-collection-garbage` when the service runs.
+            Options given to `nix-collect-garbage` when the service runs.
           '';
           default = "";
           example = "--delete-older-than 30d";
@@ -64,37 +83,46 @@ in {
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    assertions = [
-      (lib.hm.assertions.assertPlatform "services.home-manager.autoExpire" pkgs
-        lib.platforms.linux)
-    ];
+  config = lib.mkIf cfg.enable (
+    lib.mkMerge [
+      (lib.mkIf pkgs.stdenv.isLinux {
+        systemd.user = {
+          timers.home-manager-auto-expire = {
+            Unit.Description = "Home Manager expire generations timer";
 
-    systemd.user = {
-      timers.home-manager-auto-expire = {
-        Unit.Description = "Home Manager expire generations timer";
+            Install.WantedBy = [ "timers.target" ];
 
-        Install.WantedBy = [ "timers.target" ];
+            Timer = {
+              OnCalendar = cfg.frequency;
+              Unit = "home-manager-auto-expire.service";
+              Persistent = true;
+            };
+          };
 
-        Timer = {
-          OnCalendar = cfg.frequency;
-          Unit = "home-manager-auto-expire.service";
-          Persistent = true;
+          services.home-manager-auto-expire = {
+            Unit.Description = "Home Manager expire generations";
+
+            Service.ExecStart = toString script;
+          };
         };
-      };
+      })
 
-      services.home-manager-auto-expire = {
-        Unit.Description = "Home Manager expire generations";
+      (lib.mkIf pkgs.stdenv.isDarwin {
+        assertions = [
+          (lib.hm.darwin.assertInterval "services.home-manager.autoExpire.frequency" cfg.frequency pkgs)
+        ];
 
-        Service.ExecStart = toString
-          (pkgs.writeShellScript "home-manager-auto-expire" (''
-            echo "Expire old Home Manager generations"
-            ${homeManagerPackage}/bin/home-manager expire-generations '${cfg.timestamp}'
-          '' + lib.optionalString cfg.store.cleanup ''
-            echo "Clean-up Nix store"
-            ${pkgs.nix}/bin/nix-collect-garbage ${cfg.store.options}
-          ''));
-      };
-    };
-  };
+        launchd.agents.home-manager-auto-expire = {
+          enable = true;
+          config = {
+            ProgramArguments = [ (toString script) ];
+            ProcessType = "Background";
+            StartCalendarInterval = lib.hm.darwin.mkCalendarInterval cfg.frequency;
+            StandardOutPath = "${config.home.homeDirectory}/Library/Logs/home-manager-auto-expire/launchd-stdout.log";
+            StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/home-manager-auto-expire/launchd-stderr.log";
+          };
+        };
+      })
+    ]
+  );
 }

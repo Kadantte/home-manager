@@ -1,6 +1,6 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
+{
+  ...
+}:
 
 {
   services.mpdscribble = {

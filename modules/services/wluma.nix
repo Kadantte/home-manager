@@ -1,21 +1,21 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.services.wluma;
   format = pkgs.formats.toml { };
   configFile = format.generate "config.toml" cfg.settings;
-in {
+in
+{
   meta.maintainers = with lib.maintainers; [ _0x5a4 ];
 
   options.services.wluma = {
-    enable = lib.mkEnableOption
-      "Enable wluma, a service for automatic brightness adjustment";
+    enable = lib.mkEnableOption "Enable wluma, a service for automatic brightness adjustment";
 
-    package = lib.mkOption {
-      type = lib.types.package;
-      default = pkgs.wluma;
-      defaultText = lib.literalExpression "pkgs.wluma";
-      description = "Package providing {command}`wluma`.";
-    };
+    package = lib.mkPackageOption pkgs "wluma" { };
 
     settings = lib.mkOption {
       type = format.type;
@@ -63,8 +63,7 @@ in {
 
   config = lib.mkIf cfg.enable {
     assertions = [
-      (lib.hm.assertions.assertPlatform "services.wluma" pkgs
-        lib.platforms.linux)
+      (lib.hm.assertions.assertPlatform "services.wluma" pkgs lib.platforms.linux)
     ];
 
     home.packages = [ cfg.package ];
@@ -75,8 +74,7 @@ in {
 
     systemd.user.services.wluma = lib.mkIf cfg.systemd.enable {
       Unit = {
-        Description =
-          "Automatic brightness adjustment based on screen contents and ALS ";
+        Description = "Automatic brightness adjustment based on screen contents and ALS ";
         After = [ cfg.systemd.target ];
         PartOf = [ cfg.systemd.target ];
         ConditionEnvironment = "WAYLAND_DISPLAY";
